@@ -12,4 +12,5 @@ sleep 3
 echo "kafka ready"
 
 kafkactl create topic kafkapock --partitions 1 --replication-factor 1
+kafkactl create topic kafkatest --partitions 1 --replication-factor 1
 kafkactl produce kafkapock --file=./resources/message.json --header x-teste:teste

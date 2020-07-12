@@ -1,6 +1,8 @@
 package com.example.kafkapock
 
 import com.example.kafkapock.config.KafkaProperties
+import com.example.kafkapock.domain.HelloWorld
+import com.example.kafkapock.domain.MessageTest
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.messaging.handler.annotation.Header
 import org.springframework.messaging.handler.annotation.Payload
@@ -20,6 +22,16 @@ class KafkaPockConsumer(kafkaProperties: KafkaProperties) {
     ) {
         println("Header $test")
         println(helloWorld)
+    }
+
+    @KafkaListener(
+        topics = ["#{@topicKafkaTest}"],
+        containerFactory = "kafkaMessageTestListenerContainerFactory"
+    )
+    fun listenWithoutHeader(
+        @Valid @Payload messageTest: MessageTest
+    ) {
+        println(messageTest)
     }
 
 }

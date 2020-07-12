@@ -1,6 +1,7 @@
 package com.example.kafkapock.config
 
-import com.example.kafkapock.HelloWorld
+import com.example.kafkapock.domain.HelloWorld
+import com.example.kafkapock.domain.MessageTest
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -45,6 +46,12 @@ class KafkaConfig(
     @Bean
     fun topicKafkaPock(): String {
         return kafkaProperties.topics[0].name
+    }
+
+    // Getting Topic Name from class
+    @Bean
+    fun topicKafkaTest(): String {
+        return kafkaProperties.topics[1].name
     }
 
     // Configuring Hello World Producer
@@ -92,6 +99,27 @@ class KafkaConfig(
             BiFunction { cr: ConsumerRecord<*, *>, _: Exception? ->
                 TopicPartition("${cr.topic()}.$groupId.DLT", cr.partition())
             }
+
+    // Configuring Message Test Consumer
+    @Bean
+    fun consumerMessageTestFactory(): ConsumerFactory<String, MessageTest> {
+        val props: MutableMap<String, Any> = HashMap()
+        props[ConsumerConfig.GROUP_ID_CONFIG] = kafkaProperties.group
+        props[ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG] = "${kafkaProperties.clusters[0].host}:${kafkaProperties.clusters[0].port}"
+        // Remove this to consume all the message since the offset 0 in the first group startup
+        //props[ConsumerConfig.AUTO_OFFSET_RESET_CONFIG] = "earliest"
+        props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
+        props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = JsonDeserializer::class.java
+
+        return DefaultKafkaConsumerFactory(props, StringDeserializer(), JsonDeserializer(MessageTest::class.java))
+    }
+
+    @Bean
+    fun kafkaMessageTestListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, MessageTest> {
+        val factory = ConcurrentKafkaListenerContainerFactory<String, MessageTest>()
+        factory.consumerFactory = consumerMessageTestFactory()
+        return factory
+    }
 
     override fun configureKafkaListeners(registrar: KafkaListenerEndpointRegistrar) {
         registrar.validator = this.validator;
