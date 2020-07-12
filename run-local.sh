@@ -5,7 +5,8 @@ docker-compose -f ./kafka-single.yml up -d
 
 echo "waiting for kafka"
 while ! kafkactl get topics; do
-  sleep 1
+  echo ""
+  sleep 2
 done
 sleep 3
 echo "kafka ready"

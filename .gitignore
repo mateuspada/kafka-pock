@@ -9,6 +9,7 @@
 /data
 
 .idea/
+zk-single-kafka-single/
 
 # User-specific stuff
 .idea/**/workspace.xml

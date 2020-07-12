@@ -2,7 +2,6 @@ package com.example.kafkapock.config
 
 import com.example.kafkapock.HelloWorld
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.clients.producer.ProducerConfig
@@ -28,39 +27,50 @@ import java.util.function.BiFunction
 
 @Configuration
 class KafkaConfig(
-    val kafkaConsumerTopicProperties: KafkaConsumerTopicProperties,
-    val kafkaProperties: KafkaProperties,
-    val validator: LocalValidatorFactoryBean
+        val kafkaProperties: KafkaProperties,
+        val validator: LocalValidatorFactoryBean
 ) : KafkaListenerConfigurer {
+
+    /* Create the topic Automatics when application startup
     @Bean
     fun paymentsConsumer(): NewTopic {
-        return NewTopic(
-            kafkaConsumerTopicProperties.topic,
-            kafkaConsumerTopicProperties.partitions,
-            kafkaConsumerTopicProperties.replication
-        )
+        return TopicBuilder.name(kafkaProperties.topics[0].name)
+                .partitions(1)
+                .replicas(1)
+                .build()
+    }
+    */
+
+    // Getting Topic Name from class
+    @Bean
+    fun topicKafkaPock(): String {
+        return kafkaProperties.topics[0].name
     }
 
+    // Configuring Hello World Producer
     @Bean
-    fun messageProducerFactory(): DefaultKafkaProducerFactory<String, HelloWorld> {
+    fun messageHelloWorldProducerFactory(): DefaultKafkaProducerFactory<String, HelloWorld> {
         val configProps: MutableMap<String, Any> = HashMap()
-        configProps[ProducerConfig.BOOTSTRAP_SERVERS_CONFIG] = kafkaProperties.bootstrapServers
+        configProps[ProducerConfig.BOOTSTRAP_SERVERS_CONFIG] = "${kafkaProperties.clusters[0].host}:${kafkaProperties.clusters[0].port}"
         configProps[ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java
         configProps[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG] = JsonSerializer::class.java
         return DefaultKafkaProducerFactory<String, HelloWorld>(configProps, StringSerializer(), JsonSerializer(ObjectMapper()))
     }
 
     @Bean
-    fun messageKafkaTemplate(): KafkaTemplate<String, HelloWorld> {
-        return KafkaTemplate(messageProducerFactory())
+    fun messageHelloWorldKafkaTemplate(): KafkaTemplate<String, HelloWorld> {
+        return KafkaTemplate(messageHelloWorldProducerFactory())
     }
 
+
+    // Configuring Hello World Consumer
     @Bean
-    fun consumerFactory(): ConsumerFactory<String, HelloWorld> {
+    fun consumerHelloWorldFactory(): ConsumerFactory<String, HelloWorld> {
         val props: MutableMap<String, Any> = HashMap()
-        props[ConsumerConfig.GROUP_ID_CONFIG] = kafkaConsumerTopicProperties.group
-        props[ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG] = kafkaProperties.bootstrapServers
-        props[ConsumerConfig.AUTO_OFFSET_RESET_CONFIG] = "earliest"
+        props[ConsumerConfig.GROUP_ID_CONFIG] = kafkaProperties.group
+        props[ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG] = "${kafkaProperties.clusters[0].host}:${kafkaProperties.clusters[0].port}"
+        // Remove this to consume all the message since the offset 0 in the first group startup
+        //props[ConsumerConfig.AUTO_OFFSET_RESET_CONFIG] = "earliest"
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
         props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = JsonDeserializer::class.java
 
@@ -68,20 +78,20 @@ class KafkaConfig(
     }
 
     @Bean
-    fun kafkaListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, HelloWorld> {
+    fun kafkaHelloWorldListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, HelloWorld> {
         val factory = ConcurrentKafkaListenerContainerFactory<String, HelloWorld>()
-        factory.consumerFactory = consumerFactory()
-        factory.setErrorHandler(errorHandler(kafkaConsumerTopicProperties.group, messageKafkaTemplate()))
+        factory.consumerFactory = consumerHelloWorldFactory()
+        factory.setErrorHandler(errorHandler(kafkaProperties.group, messageHelloWorldKafkaTemplate()))
         return factory
     }
 
     private fun errorHandler(groupId: String, kafkaTemplate: KafkaTemplate<String, HelloWorld>): ErrorHandler =
-        SeekToCurrentErrorHandler(DeadLetterPublishingRecoverer(kafkaTemplate, destinationResolver(groupId)))
+            SeekToCurrentErrorHandler(DeadLetterPublishingRecoverer(kafkaTemplate, destinationResolver(groupId)))
 
     private fun destinationResolver(groupId: String): BiFunction<ConsumerRecord<*, *>, Exception, TopicPartition> =
-        BiFunction { cr: ConsumerRecord<*, *>, _: Exception? ->
-            TopicPartition(cr.topic() + ".DLT", cr.partition())
-        }
+            BiFunction { cr: ConsumerRecord<*, *>, _: Exception? ->
+                TopicPartition("${cr.topic()}.$groupId.DLT", cr.partition())
+            }
 
     override fun configureKafkaListeners(registrar: KafkaListenerEndpointRegistrar) {
         registrar.validator = this.validator;
